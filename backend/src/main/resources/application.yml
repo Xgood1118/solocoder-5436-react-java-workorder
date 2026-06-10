@@ -1,0 +1,10 @@
+server:
+  port: ${SERVER_PORT:8081}
+
+spring:
+  application:
+    name: workorder-system
+
+workorder:
+  max-worker-load: 3
+  return-sla-hours: 4
