@@ -105,6 +105,11 @@ public class WorkOrderController {
         return workOrderService.getEquipmentHistory(equipmentCode);
     }
 
+    @PostMapping("/sla/check")
+    public int triggerSlaCheck() {
+        return workOrderService.escalateExpiredReturnedOrders();
+    }
+
     @GetMapping("/production/{productionOrderId}/quality")
     public List<WorkOrder> getQualityOrdersByProductionOrder(@PathVariable String productionOrderId) {
         return workOrderService.getQualityOrdersByProductionOrder(productionOrderId);

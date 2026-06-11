@@ -39,6 +39,23 @@ public class WorkOrderService {
         return saved;
     }
 
+    public WorkOrder createWithStatus(WorkOrder workOrder) {
+        if (workOrder.getId() == null) {
+            workOrder.setId(UUID.randomUUID().toString());
+        }
+        if (workOrder.getCreatedAt() == null) {
+            workOrder.setCreatedAt(LocalDateTime.now());
+        }
+        if (workOrder.getType() == WorkOrderType.PRODUCTION && workOrder.getCompletedQuantity() == null) {
+            workOrder.setCompletedQuantity(0);
+        }
+
+        WorkOrder saved = workOrderRepository.save(workOrder);
+        logService.log(saved.getId(), "创建工单", workOrder.getCreator(),
+                null, saved.getStatus(), workOrder.getDescription());
+        return saved;
+    }
+
     public WorkOrder getById(String id) {
         return workOrderRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("工单不存在: " + id));
@@ -155,10 +172,13 @@ public class WorkOrderService {
         workOrder.setReturnedAt(LocalDateTime.now());
         workOrder.setReturnReason(returnReason);
         workOrder.setSlaDeadline(LocalDateTime.now().plusHours(4));
+        workOrder.setSlaBreached(false);
+        workOrder.setAssignee(null);
+        workOrder.setAssignedAt(null);
 
         WorkOrder saved = workOrderRepository.save(workOrder);
         logService.log(workOrderId, "退回工单", operator, fromStatus, WorkOrderStatus.RETURNED,
-                "退回原因: " + returnReason);
+                "退回原因: " + returnReason + "，SLA：4小时");
         return saved;
     }
 
@@ -215,5 +235,36 @@ public class WorkOrderService {
 
     public List<WorkOrder> getQualityOrdersByProductionOrder(String productionOrderId) {
         return workOrderRepository.findBySourceProductionOrderId(productionOrderId);
+    }
+
+    public int escalateExpiredReturnedOrders() {
+        List<WorkOrder> returnedOrders = workOrderRepository.findByStatus(WorkOrderStatus.RETURNED);
+        int escalatedCount = 0;
+        LocalDateTime now = LocalDateTime.now();
+
+        for (WorkOrder wo : returnedOrders) {
+            if (wo.getSlaDeadline() != null
+                    && now.isAfter(wo.getSlaDeadline())
+                    && !wo.isSlaBreached()) {
+
+                WorkOrderStatus fromStatus = wo.getStatus();
+                wo.setStatus(WorkOrderStatus.CREATED);
+                wo.setSlaBreached(true);
+                wo.setAssignee(null);
+                wo.setAssignedAt(null);
+                wo.setAcceptedAt(null);
+                wo.setStartedAt(null);
+                workOrderRepository.save(wo);
+
+                String upgradeTarget = wo.getCreator() != null ? wo.getCreator() : "车间主任";
+                logService.log(wo.getId(), "SLA自动升级", "系统",
+                        fromStatus, WorkOrderStatus.CREATED,
+                        "退回工单超过4小时未处理，自动升级至: " + upgradeTarget);
+
+                escalatedCount++;
+            }
+        }
+
+        return escalatedCount;
     }
 }

@@ -9,6 +9,8 @@ import com.workorder.model.enums.WorkOrderStatus;
 import com.workorder.model.enums.WorkOrderType;
 import com.workorder.service.*;
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -16,6 +18,8 @@ import java.util.List;
 
 @Component
 public class DataInitializer {
+
+    private static final Logger logger = LoggerFactory.getLogger(DataInitializer.class);
 
     private final WorkerService workerService;
     private final WorkOrderService workOrderService;
@@ -88,7 +92,12 @@ public class DataInitializer {
     }
 
     private void initWorkOrders() {
-        if (!workOrderService.getAll().isEmpty()) return;
+        if (!workOrderService.getAll().isEmpty()) {
+            logger.info("工单数据已存在，跳过初始化");
+            return;
+        }
+
+        logger.info("开始初始化工单数据...");
 
         WorkOrder wo1 = new WorkOrder();
         wo1.setTitle("生产工单-SO202401001");
@@ -189,7 +198,14 @@ public class DataInitializer {
         wo8.setEquipmentCode("CNC-001");
         wo8.setFaultDescription("轴承磨损需更换");
         wo8.setStatus(WorkOrderStatus.COMPLETED);
+        wo8.setAssignee("王五");
+        wo8.setAssignedAt(LocalDateTime.now().minusDays(16));
+        wo8.setAcceptedAt(LocalDateTime.now().minusDays(16).plusHours(1));
+        wo8.setStartedAt(LocalDateTime.now().minusDays(16).plusHours(2));
+        wo8.setCreatedAt(LocalDateTime.now().minusDays(16));
         wo8.setCompletedAt(LocalDateTime.now().minusDays(15));
-        workOrderService.create(wo8);
+        workOrderService.createWithStatus(wo8);
+
+        logger.info("工单数据初始化完成，共 8 张工单（含 1 张已完成历史设备工单）");
     }
 }
